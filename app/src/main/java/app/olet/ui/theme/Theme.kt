@@ -13,7 +13,10 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import app.olet.R
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import app.olet.data.ThemeMode
@@ -73,15 +76,34 @@ private val DarkColors = darkColorScheme(
     error = Color(0xFFFF6B78),
 )
 
+val Jakarta = FontFamily(
+    Font(R.font.jakarta_regular, FontWeight.Normal),
+    Font(R.font.jakarta_medium, FontWeight.Medium),
+    Font(R.font.jakarta_semibold, FontWeight.SemiBold),
+    Font(R.font.jakarta_bold, FontWeight.Bold),
+    Font(R.font.jakarta_extrabold, FontWeight.ExtraBold),
+)
+
+private fun TextStyle.j(weight: FontWeight? = null, spacing: Float? = null) =
+    copy(fontFamily = Jakarta, fontWeight = weight ?: fontWeight, letterSpacing = spacing?.sp ?: letterSpacing)
+
 private val AppTypography = Typography().run {
     copy(
-        displaySmall = displaySmall.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp),
-        headlineLarge = headlineLarge.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp),
-        headlineMedium = headlineMedium.copy(fontWeight = FontWeight.Bold, letterSpacing = (-0.3).sp),
-        headlineSmall = headlineSmall.copy(fontWeight = FontWeight.SemiBold),
-        titleLarge = titleLarge.copy(fontWeight = FontWeight.SemiBold),
-        titleMedium = titleMedium.copy(fontWeight = FontWeight.SemiBold),
-        labelLarge = labelLarge.copy(fontWeight = FontWeight.SemiBold),
+        displayLarge = displayLarge.j(FontWeight.ExtraBold, -1f),
+        displayMedium = displayMedium.j(FontWeight.ExtraBold, -1f),
+        displaySmall = displaySmall.j(FontWeight.ExtraBold, -0.8f),
+        headlineLarge = headlineLarge.j(FontWeight.ExtraBold, -0.6f),
+        headlineMedium = headlineMedium.j(FontWeight.Bold, -0.4f),
+        headlineSmall = headlineSmall.j(FontWeight.Bold, -0.3f),
+        titleLarge = titleLarge.j(FontWeight.Bold, -0.2f),
+        titleMedium = titleMedium.j(FontWeight.SemiBold, 0f),
+        titleSmall = titleSmall.j(FontWeight.SemiBold, 0f),
+        bodyLarge = bodyLarge.j(FontWeight.Medium, 0f),
+        bodyMedium = bodyMedium.j(FontWeight.Medium, 0f),
+        bodySmall = bodySmall.j(FontWeight.Medium, 0f),
+        labelLarge = labelLarge.j(FontWeight.SemiBold, 0f),
+        labelMedium = labelMedium.j(FontWeight.SemiBold, 0f),
+        labelSmall = labelSmall.j(FontWeight.SemiBold, 0.2f),
     )
 }
 
@@ -100,7 +122,7 @@ val LocalExtraColors = staticCompositionLocalOf {
     ExtraColors(Brush.linearGradient(listOf(Brand, BrandDeep)), false)
 }
 
-val MoneyStyle = TextStyle(fontWeight = FontWeight.Bold, letterSpacing = (-0.5).sp)
+val MoneyStyle = TextStyle(fontFamily = Jakarta, fontWeight = FontWeight.ExtraBold, letterSpacing = (-0.5).sp)
 
 @Composable
 fun OletTheme(mode: ThemeMode = ThemeMode.SYSTEM, content: @Composable () -> Unit) {

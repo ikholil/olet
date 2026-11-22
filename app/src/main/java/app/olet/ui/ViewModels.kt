@@ -80,16 +80,85 @@ class MainViewModel(private val app: OletApp) : ViewModel() {
     // ---- Transactions screen filtering ----
     val selectedMonth = MutableStateFlow(YearMonth.now())
     val typeFilter = MutableStateFlow<TxType?>(null)
+    val searchQuery = MutableStateFlow("")
 
+    /** When searching, all months are searched; otherwise the selected month is shown. */
     val filteredTransactions: StateFlow<List<TransactionDetail>> =
-        combine(transactions, selectedMonth, typeFilter) { list, month, type ->
+        combine(transactions, selectedMonth, typeFilter, searchQuery) { list, month, type, q ->
+            val query = q.trim()
             list.filter {
-                YearMonth.from(it.tx.date.toLocalDate()) == month && (type == null || it.tx.type == type)
+                (type == null || it.tx.type == type) &&
+                    if (query.isEmpty()) YearMonth.from(it.tx.date.toLocalDate()) == month
+                    else it.tx.title.contains(query, true) || (it.categoryName?.contains(query, true) == true) ||
+                        it.tx.note.contains(query, true) || (it.accountName?.contains(query, true) == true)
             }
         }.state(emptyList())
 
+    data class CategorySpend(val name: String, val icon: String?, val color: Long?, val amount: Double)
+
+    /** This month's expenses grouped by category, largest first. */
+    val monthSpending: StateFlow<List<CategorySpend>> = transactions.map { list ->
+        val month = YearMonth.now()
+        list.filter { it.tx.type == TxType.EXPENSE && YearMonth.from(it.tx.date.toLocalDate()) == month }
+            .groupBy { it.tx.categoryId }
+            .map { (_, items) ->
+                val f = items.first()
+                CategorySpend(f.categoryName ?: "Uncategorized", f.categoryIcon, f.categoryColor, items.sumOf { it.tx.amount })
+            }
+            .sortedByDescending { it.amount }
+    }.state(emptyList())
+
+    /** Quick-add sheet asks a destination screen to open its "new" form. */
+    val pendingAdd = MutableStateFlow<String?>(null)
+
     val selectedMonthSummary: StateFlow<MonthSummary> =
         combine(transactions, selectedMonth) { list, m -> summaryFor(list, m) }.state(MonthSummary())
+
+    // ---- Smart suggestions ----
+    data class TxSuggestion(
+        val title: String,
+        val categoryId: Long?,
+        val accountId: Long?,
+        val amount: Double,
+        val count: Int,
+        val categoryName: String?,
+        val categoryIcon: String?,
+        val categoryColor: Long?,
+    )
+
+    /**
+     * Past titles for [type], ranked by how often and how recently they were used.
+     * Empty [query] = most frequent; otherwise prefix matches first, then contains.
+     */
+    fun titleSuggestions(all: List<TransactionDetail>, type: TxType, query: String, limit: Int = 8): List<TxSuggestion> {
+        val q = query.trim()
+        val grouped = all.filter { it.tx.type == type }.groupBy { it.tx.title.trim().lowercase() }
+        return grouped.values.map { items ->
+            val latest = items.first() // list is newest-first
+            TxSuggestion(
+                latest.tx.title.trim(), latest.tx.categoryId, latest.tx.accountId, latest.tx.amount, items.size,
+                latest.categoryName, latest.categoryIcon, latest.categoryColor,
+            ) to latest.tx.date
+        }
+            .filter { (s, _) -> q.isEmpty() || (s.title.contains(q, true) && !s.title.equals(q, true)) }
+            .sortedWith(
+                compareByDescending<Pair<TxSuggestion, Long>> { (s, _) -> q.isNotEmpty() && s.title.startsWith(q, true) }
+                    .thenByDescending { it.first.count }
+                    .thenByDescending { it.second }
+            )
+            .take(limit)
+            .map { it.first }
+    }
+
+    /** categoryId -> times used, for ordering categories by popularity. */
+    fun categoryUsage(all: List<TransactionDetail>, type: TxType): Map<Long, Int> =
+        all.filter { it.tx.type == type && it.tx.categoryId != null }.groupingBy { it.tx.categoryId!! }.eachCount()
+
+    /** Most common amounts for a title (newest first on ties). */
+    fun amountsFor(all: List<TransactionDetail>, type: TxType, title: String): List<Double> =
+        all.filter { it.tx.type == type && it.tx.title.equals(title.trim(), true) }
+            .groupingBy { it.tx.amount }.eachCount()
+            .entries.sortedByDescending { it.value }.map { it.key }.take(4)
 
     // ---- Auth / settings ----
     fun continueAsGuest(name: String) = viewModelScope.launch {

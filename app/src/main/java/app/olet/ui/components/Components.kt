@@ -58,6 +58,7 @@ import app.olet.ui.theme.ExpenseRed
 import app.olet.ui.theme.IncomeGreen
 import app.olet.ui.util.colorOf
 import app.olet.ui.util.formatDate
+import app.olet.ui.util.friendlyDay
 import app.olet.ui.util.formatMoney
 import app.olet.ui.util.iconFor
 import app.olet.ui.util.toLocalDate
@@ -279,7 +280,7 @@ fun DateField(
 }
 
 @Composable
-fun TransactionRow(item: TransactionDetail, currency: String, onClick: () -> Unit, modifier: Modifier = Modifier) {
+fun TransactionRow(item: TransactionDetail, currency: String, onClick: () -> Unit, modifier: Modifier = Modifier, hideAmount: Boolean = false, showDate: Boolean = false) {
     val tx = item.tx
     val income = tx.type == TxType.INCOME
     Row(
@@ -295,7 +296,11 @@ fun TransactionRow(item: TransactionDetail, currency: String, onClick: () -> Uni
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f)) {
             Text(tx.title, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-            val sub = listOfNotNull(item.categoryName ?: "Uncategorized", item.accountName).joinToString(" • ")
+            val sub = listOfNotNull(
+                item.categoryName ?: "Uncategorized",
+                item.accountName,
+                if (showDate) item.tx.date.toLocalDate().friendlyDay() else null,
+            ).joinToString(" • ")
             Text(
                 sub,
                 style = MaterialTheme.typography.bodySmall,
@@ -306,7 +311,7 @@ fun TransactionRow(item: TransactionDetail, currency: String, onClick: () -> Uni
         }
         Spacer(Modifier.width(8.dp))
         Text(
-            formatMoney(if (income) tx.amount else -tx.amount, currency, signed = true),
+            if (hideAmount) "•••" else formatMoney(if (income) tx.amount else -tx.amount, currency, signed = true),
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.Bold,
             color = if (income) IncomeGreen else ExpenseRed,

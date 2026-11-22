@@ -41,6 +41,8 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import app.olet.ui.components.PillTabs
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -89,36 +91,40 @@ fun LoansScreen(vm: MainViewModel, profile: UserProfile) {
     val list = loans.filter { it.type == type }
     val accent = if (type == LoanType.LENT) IncomeGreen else ExpenseRed
 
+    val pending by vm.pendingAdd.collectAsStateWithLifecycle()
+    LaunchedEffect(pending) {
+        if (pending == "loan") {
+            vm.pendingAdd.value = null
+            editor = LoanEntity(person = "", type = type, amount = 0.0, date = LocalDate.now().toMillis())
+        }
+    }
+    val people = remember(loans) {
+        loans.groupBy { it.person.trim().lowercase() }.values.map { it.first() }.sortedByDescending { it.date }
+    }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets.statusBars,
-        topBar = {
-            TopAppBar(
-                title = { Text("Loans") },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { editor = LoanEntity(person = "", type = type, amount = 0.0, date = LocalDate.now().toMillis()) },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(20.dp),
-            ) { Icon(Icons.Rounded.Add, "Add loan") }
-        },
+        contentWindowInsets = WindowInsets(0),
     ) { pad ->
         Column(Modifier.fillMaxSize().padding(pad)) {
-            PrimaryTabRow(selectedTabIndex = tab, containerColor = MaterialTheme.colorScheme.background) {
-                Tab(selected = tab == 0, onClick = { tab = 0 }, selectedContentColor = MaterialTheme.colorScheme.primary, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("I'll receive") })
-                Tab(selected = tab == 1, onClick = { tab = 1 }, selectedContentColor = MaterialTheme.colorScheme.primary, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("I owe") })
+            ScreenHeader("Loans", "Add loan") {
+                editor = LoanEntity(person = "", type = type, amount = 0.0, date = LocalDate.now().toMillis())
             }
+            PillTabs(
+                listOf("I'll receive", "I owe"),
+                selected = tab,
+                onSelect = { tab = it },
+                activeColors = listOf(IncomeGreen, ExpenseRed),
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
             LazyColumn(
                 Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 96.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 28.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 item {
-                    AppCard(Modifier.fillMaxWidth()) {
+                    androidx.compose.material3.Surface(shape = RoundedCornerShape(28.dp), color = accent.copy(alpha = 0.09f), modifier = Modifier.fillMaxWidth()) {
+                      Column(Modifier.padding(20.dp)) {
                         Text(
                             if (type == LoanType.LENT) "Total others owe you" else "Total you owe others",
                             style = MaterialTheme.typography.labelLarge,
@@ -134,6 +140,7 @@ fun LoansScreen(vm: MainViewModel, profile: UserProfile) {
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
+                      }
                     }
                 }
                 if (list.isEmpty()) {
@@ -158,9 +165,9 @@ fun LoansScreen(vm: MainViewModel, profile: UserProfile) {
         }
     }
 
-    editor?.let { LoanEditor(it, cur, onDismiss = { editor = null }, onSave = { l -> vm.saveLoan(l); editor = null }) }
+    editor?.let { androidx.compose.runtime.key(System.identityHashCode(it)) { LoanEditor(it, cur, people, onDismiss = { editor = null }, onSave = { l -> vm.saveLoan(l); editor = null }) } }
     payFor?.let { loan ->
-        PaymentDialog(loan, cur, onDismiss = { payFor = null }, onPay = { vm.addLoanPayment(loan, it); payFor = null })
+        androidx.compose.runtime.key(System.identityHashCode(loan)) { PaymentDialog(loan, cur, onDismiss = { payFor = null }, onPay = { vm.addLoanPayment(loan, it); payFor = null }) }
     }
     toDelete?.let { loan ->
         ConfirmDialog("Delete loan?", "Remove the loan record with ${loan.person}?", onConfirm = { vm.deleteLoan(loan) }, onDismiss = { toDelete = null })
@@ -247,7 +254,7 @@ private fun LoanCard(
 }
 
 @Composable
-private fun LoanEditor(initial: LoanEntity, cur: String, onDismiss: () -> Unit, onSave: (LoanEntity) -> Unit) {
+private fun LoanEditor(initial: LoanEntity, cur: String, people: List<LoanEntity>, onDismiss: () -> Unit, onSave: (LoanEntity) -> Unit) {
     var person by rememberSaveable { mutableStateOf(initial.person) }
     var phone by rememberSaveable { mutableStateOf(initial.phone) }
     var amount by rememberSaveable { mutableStateOf(amountInput(initial.amount)) }
@@ -272,14 +279,21 @@ private fun LoanEditor(initial: LoanEntity, cur: String, onDismiss: () -> Unit, 
             )
         },
     ) {
-        app.olet.ui.components.ChipSelector(
-            items = listOf(LoanType.LENT, LoanType.BORROWED),
-            selected = type,
-            label = { if (it == LoanType.LENT) "I lent (they owe me)" else "I borrowed (I owe)" },
-            onSelect = { type = it },
-            tint = { if (it == LoanType.LENT) IncomeGreen else ExpenseRed },
+        PillTabs(
+            listOf("I lent", "I borrowed"),
+            selected = if (type == LoanType.LENT) 0 else 1,
+            onSelect = { type = if (it == 0) LoanType.LENT else LoanType.BORROWED },
+            activeColors = listOf(IncomeGreen, ExpenseRed),
         )
         AppTextField(person, { person = it.take(50) }, "Person name", leadingIcon = Icons.Rounded.Person)
+        val matches = people.filter {
+            (person.isBlank() || it.person.contains(person.trim(), true)) && !it.person.equals(person.trim(), true)
+        }.take(6)
+        app.olet.ui.components.SuggestionRow(
+            items = matches.map { app.olet.ui.components.Suggestion(it.person, it.person, it.phone.ifBlank { null }) },
+            header = if (person.isBlank()) "People" else "Suggestions",
+            onPick = { s -> people.firstOrNull { it.person == s.key }?.let { person = it.person; if (phone.isBlank()) phone = it.phone } },
+        )
         AppTextField(phone, { phone = it.take(20) }, "Phone (optional)", leadingIcon = Icons.Rounded.Phone, keyboardType = KeyboardType.Phone)
         AppTextField(amount, { amount = sanitizeAmount(it) }, "Amount", keyboardType = KeyboardType.Decimal, prefix = cur)
         DateField("Date", date, { if (it != null) date = it })

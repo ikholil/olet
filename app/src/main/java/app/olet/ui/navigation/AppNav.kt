@@ -1,6 +1,22 @@
 package app.olet.ui.navigation
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.material.icons.automirrored.outlined.ReceiptLong
+import androidx.compose.material.icons.outlined.Handshake
+import androidx.compose.material.icons.outlined.Home
+import androidx.compose.material.icons.outlined.Savings
+import androidx.compose.material.icons.rounded.Savings
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import app.olet.ui.components.FloatingNavBar
+import app.olet.ui.components.NavItem
+import app.olet.ui.screens.QuickAdd
+import app.olet.ui.screens.QuickAddSheet
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
@@ -59,14 +75,11 @@ object Routes {
     fun tx(type: TxType = TxType.EXPENSE, id: Long = 0) = "tx?type=${type.name}&id=$id"
 }
 
-private data class Tab(val route: String, val label: String, val icon: ImageVector)
-
 private val tabs = listOf(
-    Tab(Routes.HOME, "Home", Icons.Rounded.Home),
-    Tab(Routes.TRANSACTIONS, "Activity", Icons.AutoMirrored.Rounded.ReceiptLong),
-    Tab(Routes.LOANS, "Loans", Icons.Rounded.Handshake),
-    Tab(Routes.INVESTMENTS, "Invest", Icons.AutoMirrored.Rounded.TrendingUp),
-    Tab(Routes.SETTINGS, "More", Icons.Rounded.Settings),
+    NavItem(Routes.HOME, "Home", Icons.Outlined.Home, Icons.Rounded.Home),
+    NavItem(Routes.TRANSACTIONS, "Activity", Icons.AutoMirrored.Outlined.ReceiptLong, Icons.AutoMirrored.Rounded.ReceiptLong),
+    NavItem(Routes.LOANS, "Loans", Icons.Outlined.Handshake, Icons.Rounded.Handshake),
+    NavItem(Routes.INVESTMENTS, "Invest", Icons.Outlined.Savings, Icons.Rounded.Savings),
 )
 
 @Composable
@@ -79,9 +92,20 @@ fun OletNavHost(vm: MainViewModel, profile: UserProfile) {
     val entry by nav.currentBackStackEntryAsState()
     val route = entry?.destination?.route
     val showBar = tabs.any { it.route == route }
+    var quickAdd by rememberSaveable { mutableStateOf(false) }
 
     Scaffold(
-        bottomBar = { if (showBar) BottomBar(nav, route) },
+        bottomBar = {
+            AnimatedVisibility(showBar, enter = slideInVertically { it } + fadeIn(), exit = slideOutVertically { it } + fadeOut()) {
+                FloatingNavBar(
+                    items = tabs,
+                    currentRoute = route,
+                    onSelect = { navigateTab(nav, it.route) },
+                    onCenterClick = { quickAdd = true },
+                    modifier = Modifier.navigationBarsPadding(),
+                )
+            }
+        },
         containerColor = MaterialTheme.colorScheme.background,
     ) { inner ->
         val bottom = PaddingValues(bottom = inner.calculateBottomPadding())
@@ -96,7 +120,11 @@ fun OletNavHost(vm: MainViewModel, profile: UserProfile) {
             composable(Routes.TRANSACTIONS) { TransactionsScreen(vm, profile, nav) }
             composable(Routes.LOANS) { LoansScreen(vm, profile) }
             composable(Routes.INVESTMENTS) { InvestmentsScreen(vm, profile) }
-            composable(Routes.SETTINGS) { SettingsScreen(vm, profile, nav) }
+            composable(
+                Routes.SETTINGS,
+                enterTransition = { slideInHorizontally(tween(260)) { it / 3 } + fadeIn(tween(260)) },
+                popExitTransition = { slideOutHorizontally(tween(220)) { it / 3 } + fadeOut(tween(220)) },
+            ) { SettingsScreen(vm, profile, nav) }
             composable(
                 Routes.ACCOUNTS,
                 enterTransition = { slideInHorizontally(tween(260)) { it / 3 } + fadeIn(tween(260)) },
@@ -118,28 +146,24 @@ fun OletNavHost(vm: MainViewModel, profile: UserProfile) {
             ) { e ->
                 val type = runCatching { TxType.valueOf(e.arguments?.getString("type") ?: "") }.getOrDefault(TxType.EXPENSE)
                 val id = e.arguments?.getLong("id") ?: 0L
-                AddTransactionScreen(vm, profile, initialType = type, editId = id, onDone = { nav.popBackStack() })
+                AddTransactionScreen(vm, profile, initialType = type, editId = id, onDone = { nav.popBackStack() }, onManageCategories = { nav.navigate(Routes.CATEGORIES) })
             }
         }
     }
-}
 
-@Composable
-private fun BottomBar(nav: NavHostController, route: String?) {
-    NavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainerLow, tonalElevation = dp0) {
-        tabs.forEach { tab ->
-            NavigationBarItem(
-                selected = route == tab.route,
-                onClick = { navigateTab(nav, tab.route) },
-                icon = { Icon(tab.icon, contentDescription = tab.label) },
-                label = { Text(tab.label) },
-                colors = NavigationBarItemDefaults.colors(
-                    indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                    selectedIconColor = MaterialTheme.colorScheme.primary,
-                    selectedTextColor = MaterialTheme.colorScheme.primary,
-                ),
-            )
-        }
+    if (quickAdd) {
+        QuickAddSheet(
+            onDismiss = { quickAdd = false },
+            onPick = { kind ->
+                quickAdd = false
+                when (kind) {
+                    QuickAdd.EXPENSE -> nav.navigate(Routes.tx(TxType.EXPENSE))
+                    QuickAdd.INCOME -> nav.navigate(Routes.tx(TxType.INCOME))
+                    QuickAdd.LOAN -> { vm.pendingAdd.value = "loan"; navigateTab(nav, Routes.LOANS) }
+                    QuickAdd.INVESTMENT -> { vm.pendingAdd.value = "investment"; navigateTab(nav, Routes.INVESTMENTS) }
+                }
+            },
+        )
     }
 }
 
@@ -150,5 +174,3 @@ fun navigateTab(nav: NavHostController, route: String) {
         restoreState = true
     }
 }
-
-private val dp0 = androidx.compose.ui.unit.Dp(0f)

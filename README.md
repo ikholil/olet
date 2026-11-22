@@ -9,7 +9,9 @@ A minimal, offline-first Android expense manager built with Kotlin and Jetpack C
 - **Accounts** — Cash, Bank, Mobile Banking (bKash/Nagad), Card, Other with live balances
 - **Loans** — who owes you and whom you owe, partial payments, due dates, overdue highlight
 - **Investments** — date, amount, company/person and contact info, active/closed
-- Monthly summaries, currency picker (৳ default), light/dark/system theme
+- **Smart entry** — title autocomplete from your history (fills category, account and amount), remembered amounts, quick +50/+100/+500/+1000, categories ordered by usage, Today/Yesterday date chips, person/company suggestions for loans and investments
+- **Floating navigation** with a center + quick-add sheet, spending donut chart, hide-balance toggle, search across all transactions
+- Monthly summaries, currency picker (৳ default), light/dark/system theme, Plus Jakarta Sans typeface (OFL, see `licenses/`)
 
 All data is stored locally on the device (Room + DataStore).
 

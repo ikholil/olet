@@ -108,6 +108,7 @@ fun AccountsScreen(vm: MainViewModel, profile: UserProfile, onBack: () -> Unit) 
     }
 
     editor?.let { acc ->
+      androidx.compose.runtime.key(System.identityHashCode(acc)) {
         var name by rememberSaveable { mutableStateOf(acc.name) }
         var type by rememberSaveable { mutableStateOf(acc.type) }
         var opening by rememberSaveable { mutableStateOf(app.olet.ui.util.amountInput(acc.openingBalance)) }
@@ -137,6 +138,7 @@ fun AccountsScreen(vm: MainViewModel, profile: UserProfile, onBack: () -> Unit) 
                 prefix = cur,
             )
         }
+      }
     }
     toDelete?.let { acc ->
         ConfirmDialog(

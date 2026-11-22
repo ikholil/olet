@@ -79,10 +79,12 @@ fun CategoriesScreen(vm: MainViewModel, onBack: () -> Unit) {
         },
     ) { pad ->
         Column(Modifier.fillMaxSize().padding(pad)) {
-            PrimaryTabRow(selectedTabIndex = tab, containerColor = MaterialTheme.colorScheme.background) {
-                Tab(selected = tab == 0, onClick = { tab = 0 }, selectedContentColor = MaterialTheme.colorScheme.primary, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Expense") })
-                Tab(selected = tab == 1, onClick = { tab = 1 }, selectedContentColor = MaterialTheme.colorScheme.primary, unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant, text = { Text("Income") })
-            }
+            app.olet.ui.components.PillTabs(
+                listOf("Expense", "Income"),
+                selected = tab,
+                onSelect = { tab = it },
+                modifier = Modifier.padding(horizontal = 20.dp),
+            )
             LazyColumn(
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 96.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -104,6 +106,7 @@ fun CategoriesScreen(vm: MainViewModel, onBack: () -> Unit) {
     }
 
     editor?.let { cat ->
+      androidx.compose.runtime.key(System.identityHashCode(cat)) {
         var name by rememberSaveable { mutableStateOf(cat.name) }
         var icon by rememberSaveable { mutableStateOf(cat.icon) }
         var color by rememberSaveable { mutableStateOf(cat.color) }
@@ -147,6 +150,7 @@ fun CategoriesScreen(vm: MainViewModel, onBack: () -> Unit) {
                 }
             }
         }
+      }
     }
     toDelete?.let { c ->
         ConfirmDialog(

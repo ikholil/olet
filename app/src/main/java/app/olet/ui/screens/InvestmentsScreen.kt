@@ -35,6 +35,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.foundation.background
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import app.olet.ui.theme.LocalExtraColors
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,41 +79,43 @@ fun InvestmentsScreen(vm: MainViewModel, profile: UserProfile) {
     val activeTotal = list.filter { it.active }.sumOf { it.amount }
     val allTotal = list.sumOf { it.amount }
 
+    val pending by vm.pendingAdd.collectAsStateWithLifecycle()
+    LaunchedEffect(pending) {
+        if (pending == "investment") {
+            vm.pendingAdd.value = null
+            editor = InvestmentEntity(name = "", amount = 0.0, date = LocalDate.now().toMillis())
+        }
+    }
+    val names = remember(list) { list.groupBy { it.name.trim().lowercase() }.values.map { it.first() } }
+
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets.statusBars,
+        contentWindowInsets = WindowInsets(0),
         topBar = {
-            TopAppBar(
-                title = { Text("Investments") },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-            )
-        },
-        floatingActionButton = {
-            FloatingActionButton(
-                onClick = { editor = InvestmentEntity(name = "", amount = 0.0, date = LocalDate.now().toMillis()) },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(20.dp),
-            ) { Icon(Icons.Rounded.Add, "Add investment") }
+            ScreenHeader("Investments", "Add investment") {
+                editor = InvestmentEntity(name = "", amount = 0.0, date = LocalDate.now().toMillis())
+            }
         },
     ) { pad ->
         LazyColumn(
             Modifier.fillMaxSize().padding(pad),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 96.dp),
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
             item {
-                AppCard(Modifier.fillMaxWidth()) {
-                    Row {
-                        Stat("Active investments", formatMoney(activeTotal, cur), MaterialTheme.colorScheme.primary, Modifier.weight(1f))
-                        Stat("All time", formatMoney(allTotal, cur), MaterialTheme.colorScheme.onSurface, Modifier.weight(1f))
+                Box(
+                    Modifier.fillMaxWidth().clip(RoundedCornerShape(28.dp)).background(LocalExtraColors.current.heroGradient).padding(20.dp)
+                ) {
+                    Column {
+                        Text("Currently invested", style = MaterialTheme.typography.labelLarge, color = Color.White.copy(alpha = 0.8f))
+                        Text(formatMoney(activeTotal, cur), style = MaterialTheme.typography.headlineLarge.merge(MoneyStyle), color = Color.White)
+                        Spacer(Modifier.height(12.dp))
+                        Text(
+                            "${list.count { it.active }} active • ${list.count { !it.active }} closed • ${formatMoney(allTotal, cur)} all time",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color.White.copy(alpha = 0.75f),
+                        )
                     }
-                    Spacer(Modifier.height(6.dp))
-                    Text(
-                        "${list.count { it.active }} active • ${list.count { !it.active }} closed",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
                 }
             }
             if (list.isEmpty()) {
@@ -131,7 +138,7 @@ fun InvestmentsScreen(vm: MainViewModel, profile: UserProfile) {
         }
     }
 
-    editor?.let { InvestmentEditor(it, cur, onDismiss = { editor = null }, onSave = { i -> vm.saveInvestment(i); editor = null }) }
+    editor?.let { androidx.compose.runtime.key(System.identityHashCode(it)) { InvestmentEditor(it, cur, names, onDismiss = { editor = null }, onSave = { i -> vm.saveInvestment(i); editor = null }) } }
     toDelete?.let { inv ->
         ConfirmDialog("Delete investment?", "Remove \"${inv.name}\"?", onConfirm = { vm.deleteInvestment(inv) }, onDismiss = { toDelete = null })
     }
@@ -180,7 +187,7 @@ private fun InvestmentCard(inv: InvestmentEntity, cur: String, onEdit: () -> Uni
 }
 
 @Composable
-private fun InvestmentEditor(initial: InvestmentEntity, cur: String, onDismiss: () -> Unit, onSave: (InvestmentEntity) -> Unit) {
+private fun InvestmentEditor(initial: InvestmentEntity, cur: String, names: List<InvestmentEntity>, onDismiss: () -> Unit, onSave: (InvestmentEntity) -> Unit) {
     var name by rememberSaveable { mutableStateOf(initial.name) }
     var contact by rememberSaveable { mutableStateOf(initial.contact) }
     var amount by rememberSaveable { mutableStateOf(amountInput(initial.amount)) }
@@ -198,6 +205,14 @@ private fun InvestmentEditor(initial: InvestmentEntity, cur: String, onDismiss: 
         },
     ) {
         AppTextField(name, { name = it.take(60) }, "Company or person", leadingIcon = Icons.Rounded.Business)
+        val matches = names.filter {
+            (name.isBlank() || it.name.contains(name.trim(), true)) && !it.name.equals(name.trim(), true)
+        }.take(6)
+        app.olet.ui.components.SuggestionRow(
+            items = matches.map { app.olet.ui.components.Suggestion(it.name, it.name, it.contact.ifBlank { null }) },
+            header = if (name.isBlank()) "Previous" else "Suggestions",
+            onPick = { s -> names.firstOrNull { it.name == s.key }?.let { name = it.name; if (contact.isBlank()) contact = it.contact } },
+        )
         AppTextField(contact, { contact = it.take(100) }, "Contact info (phone, email, address)", leadingIcon = Icons.Rounded.ContactPhone)
         AppTextField(amount, { amount = sanitizeAmount(it) }, "Amount invested", keyboardType = KeyboardType.Decimal, prefix = cur)
         DateField("Date", date, { if (it != null) date = it })

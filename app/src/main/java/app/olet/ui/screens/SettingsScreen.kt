@@ -83,13 +83,7 @@ fun SettingsScreen(vm: MainViewModel, profile: UserProfile, nav: NavHostControll
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets.statusBars,
-        topBar = {
-            TopAppBar(
-                title = { Text("More") },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background),
-            )
-        },
+        topBar = { app.olet.ui.components.BackTopBar("Settings", onBack = { nav.popBackStack() }) },
     ) { pad ->
         Column(
             Modifier.fillMaxSize().padding(pad).verticalScroll(rememberScrollState()).padding(horizontal = 20.dp),
